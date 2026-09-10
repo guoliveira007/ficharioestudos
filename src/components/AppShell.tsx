@@ -30,7 +30,8 @@ const NAV = [
   { to: "/simulados", label: "Simulados" },
   { to: "/praticar", label: "Praticar" },
   { to: "/redacao", label: "Redação" },
-  { to: "/oficina", label: "Oficina" },
+  { to: "/oficina", label: "Oficina de redação" },
+  { to: "/estudo", label: "Oficina de estudos" },
   { to: "/revisoes", label: "Revisões" },
   { to: "/nuvem", label: "Nuvem" },
 ] as const;
