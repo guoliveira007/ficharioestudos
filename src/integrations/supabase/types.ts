@@ -1010,6 +1010,290 @@ export type Database = {
         }
         Relationships: []
       }
+      workshop_answers: {
+        Row: {
+          answer: string
+          created_at: string
+          feedback: Json
+          id: string
+          is_correct: boolean | null
+          question_id: string | null
+          score: number | null
+          session_id: string
+          stage: string
+          step_index: number | null
+          user_id: string
+        }
+        Insert: {
+          answer?: string
+          created_at?: string
+          feedback?: Json
+          id?: string
+          is_correct?: boolean | null
+          question_id?: string | null
+          score?: number | null
+          session_id: string
+          stage?: string
+          step_index?: number | null
+          user_id: string
+        }
+        Update: {
+          answer?: string
+          created_at?: string
+          feedback?: Json
+          id?: string
+          is_correct?: boolean | null
+          question_id?: string | null
+          score?: number | null
+          session_id?: string
+          stage?: string
+          step_index?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_answers_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_answers_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_questions: {
+        Row: {
+          area: string
+          correct_answer: string | null
+          created_at: string
+          difficulty: string
+          explanation: string | null
+          id: string
+          options: Json
+          page_number: number | null
+          source_id: string | null
+          statement: string
+          subject_label: string
+          topic_id: string | null
+          topic_label: string
+          user_id: string
+        }
+        Insert: {
+          area: string
+          correct_answer?: string | null
+          created_at?: string
+          difficulty?: string
+          explanation?: string | null
+          id?: string
+          options?: Json
+          page_number?: number | null
+          source_id?: string | null
+          statement: string
+          subject_label?: string
+          topic_id?: string | null
+          topic_label?: string
+          user_id: string
+        }
+        Update: {
+          area?: string
+          correct_answer?: string | null
+          created_at?: string
+          difficulty?: string
+          explanation?: string | null
+          id?: string
+          options?: Json
+          page_number?: number | null
+          source_id?: string | null
+          statement?: string
+          subject_label?: string
+          topic_id?: string | null
+          topic_label?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_questions_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_questions_topic_id_fkey"
+            columns: ["topic_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_topics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_sessions: {
+        Row: {
+          area: string
+          correct: number
+          created_at: string
+          finished_at: string | null
+          id: string
+          minutes: number
+          stage: string
+          step_index: number
+          topic_id: string | null
+          total: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          area: string
+          correct?: number
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          minutes?: number
+          stage?: string
+          step_index?: number
+          topic_id?: string | null
+          total?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          area?: string
+          correct?: number
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          minutes?: number
+          stage?: string
+          step_index?: number
+          topic_id?: string | null
+          total?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_sessions_topic_id_fkey"
+            columns: ["topic_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_topics"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workshop_sources: {
+        Row: {
+          created_at: string
+          drive_id: string | null
+          error: string | null
+          folder: string
+          id: string
+          name: string
+          onedrive_item_id: string
+          pages: number | null
+          path: string
+          processed_at: string | null
+          size: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          drive_id?: string | null
+          error?: string | null
+          folder: string
+          id?: string
+          name: string
+          onedrive_item_id: string
+          pages?: number | null
+          path?: string
+          processed_at?: string | null
+          size?: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          drive_id?: string | null
+          error?: string | null
+          folder?: string
+          id?: string
+          name?: string
+          onedrive_item_id?: string
+          pages?: number | null
+          path?: string
+          processed_at?: string | null
+          size?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      workshop_topics: {
+        Row: {
+          area: string
+          created_at: string
+          id: string
+          source_id: string | null
+          steps: Json
+          subject_id: string | null
+          subject_label: string
+          summary: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          area: string
+          created_at?: string
+          id?: string
+          source_id?: string | null
+          steps?: Json
+          subject_id?: string | null
+          subject_label?: string
+          summary?: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          area?: string
+          created_at?: string
+          id?: string
+          source_id?: string | null
+          steps?: Json
+          subject_id?: string | null
+          subject_label?: string
+          summary?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workshop_topics_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "workshop_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workshop_topics_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
