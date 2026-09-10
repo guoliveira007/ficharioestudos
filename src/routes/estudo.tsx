@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Cloud,
   Loader2,
+  RotateCcw,
   Sparkles,
   Target,
   X,
@@ -24,9 +25,11 @@ import {
   listWorkshopCatalog,
   startWorkshopSession,
   workshopAnswer,
+  workshopDeepen,
   workshopStep,
   type AnswerFeedback,
   type CatalogTopic,
+  type StepDeepDive,
   type StepFeedback,
   type WorkshopSession,
 } from "@/lib/workshop.functions";
@@ -219,6 +222,7 @@ type Stage = "aula" | "exercicios" | "fim";
 function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => void }) {
   const sendStep = useServerFn(workshopStep);
   const sendAnswer = useServerFn(workshopAnswer);
+  const deepen = useServerFn(workshopDeepen);
   const finish = useServerFn(finishWorkshopSession);
 
   const [stage, setStage] = useState<Stage>("aula");
@@ -226,9 +230,15 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [stepFeedback, setStepFeedback] = useState<StepFeedback | null>(null);
+  const [stepAttempt, setStepAttempt] = useState(1);
   const [qIndex, setQIndex] = useState(0);
   const [answerFeedback, setAnswerFeedback] = useState<AnswerFeedback | null>(null);
+  const [qAttempt, setQAttempt] = useState(1);
+  const [eliminated, setEliminated] = useState<string[]>([]);
   const [score, setScore] = useState({ correct: 0, total: 0 });
+  const [deep, setDeep] = useState<StepDeepDive | null>(null);
+  const [deepBusy, setDeepBusy] = useState(false);
+  const [duvida, setDuvida] = useState("");
   const started = useRef(Date.now());
   const [elapsed, setElapsed] = useState(0);
 
@@ -242,11 +252,21 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
   const minutes = Math.floor(elapsed / 60);
   const clock = `${String(minutes).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`;
 
-  async function submitStep() {
-    if (!text.trim() || busy) return;
+  async function submitStep(revelar = false) {
+    if ((!text.trim() && !revelar) || busy) return;
     setBusy(true);
     try {
-      setStepFeedback(await sendStep({ data: { sessionId: session.sessionId, stepIndex, answer: text } }));
+      setStepFeedback(
+        await sendStep({
+          data: {
+            sessionId: session.sessionId,
+            stepIndex,
+            answer: text.trim() || "(o aluno pediu a resolução)",
+            attempt: stepAttempt,
+            revelar,
+          },
+        }),
+      );
     } catch (err) {
       toast.error(errorMessage(err, "Não consegui concluir agora."));
     } finally {
@@ -254,9 +274,29 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
     }
   }
 
+  function retryStep() {
+    setStepFeedback(null);
+    setStepAttempt((a) => a + 1);
+  }
+
+  async function loadDeep() {
+    if (deepBusy) return;
+    setDeepBusy(true);
+    try {
+      setDeep(await deepen({ data: { sessionId: session.sessionId, stepIndex, duvida } }));
+    } catch (err) {
+      toast.error(errorMessage(err, "Não consegui aprofundar agora."));
+    } finally {
+      setDeepBusy(false);
+    }
+  }
+
   function nextStep() {
     setStepFeedback(null);
+    setStepAttempt(1);
     setText("");
+    setDeep(null);
+    setDuvida("");
     if (stepIndex + 1 < session.steps.length) {
       setStepIndex((i) => i + 1);
     } else if (session.questions.length > 0) {
@@ -266,15 +306,28 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
     }
   }
 
-  async function submitAnswer(value: string) {
+  async function submitAnswer(value: string, revelar = false) {
     if (busy || !question) return;
     setBusy(true);
     try {
       const feedback = await sendAnswer({
-        data: { sessionId: session.sessionId, questionId: question.id, answer: value },
+        data: {
+          sessionId: session.sessionId,
+          questionId: question.id,
+          answer: value || "(o aluno pediu a resolução)",
+          attempt: qAttempt,
+          revelar,
+        },
       });
       setAnswerFeedback(feedback);
-      setScore((s) => ({ correct: s.correct + (feedback.correta ? 1 : 0), total: s.total + 1 }));
+      if (qAttempt === 1) {
+        setScore((s) => ({ correct: s.correct + (feedback.correta ? 1 : 0), total: s.total + 1 }));
+      }
+      if (feedback.podeTentarNovamente) {
+        setEliminated((prev) =>
+          Array.from(new Set([...prev, ...feedback.descartadas, value.toUpperCase().slice(0, 1)])),
+        );
+      }
     } catch (err) {
       toast.error(errorMessage(err, "Não consegui concluir agora."));
     } finally {
@@ -282,8 +335,16 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
     }
   }
 
+  function retryQuestion() {
+    setAnswerFeedback(null);
+    setQAttempt((a) => a + 1);
+    setText("");
+  }
+
   function nextQuestion() {
     setAnswerFeedback(null);
+    setQAttempt(1);
+    setEliminated([]);
     setText("");
     if (qIndex + 1 < session.questions.length) setQIndex((i) => i + 1);
     else void end();
@@ -334,12 +395,89 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
                 <RichText>{step.exemplo}</RichText>
               </div>
             )}
+
+            {!deep && (
+              <div className="mt-4 border-t border-line pt-3">
+                <input
+                  value={duvida}
+                  onChange={(e) => setDuvida(e.target.value)}
+                  placeholder="Tem alguma dúvida específica deste passo? (opcional)"
+                  className="w-full rounded border border-line bg-background p-2 text-sm text-ink outline-none focus:border-sun"
+                />
+                <button
+                  type="button"
+                  onClick={loadDeep}
+                  disabled={deepBusy}
+                  className="mt-2 flex items-center gap-2 rounded border border-sun px-3 py-1.5 text-sm text-ink transition-colors hover:bg-sun/10 disabled:opacity-50"
+                >
+                  {deepBusy ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <BookOpen className="size-4 text-sun-deep" />
+                  )}
+                  Aprofundar este passo
+                </button>
+              </div>
+            )}
+
+            {deep && (
+              <div className="mt-4 space-y-3 border-t border-line pt-3 text-sm text-ink-soft">
+                <div className="leading-relaxed">
+                  <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.14em]">teoria</p>
+                  <RichText>{deep.teoria}</RichText>
+                </div>
+                {deep.formulas.length > 0 && (
+                  <ul className="rounded border border-line bg-background p-3">
+                    {deep.formulas.map((f) => (
+                      <li key={f} className="font-mono text-[12px] text-ink">
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {deep.exemploResolvido && (
+                  <div className="leading-relaxed">
+                    <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.14em]">
+                      exemplo resolvido
+                    </p>
+                    <RichText>{deep.exemploResolvido}</RichText>
+                  </div>
+                )}
+                {deep.errosComuns.length > 0 && (
+                  <div>
+                    <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.14em]">
+                      erros comuns
+                    </p>
+                    {deep.errosComuns.map((e) => (
+                      <p key={e} className="flex gap-2">
+                        <X className="mt-0.5 size-4 shrink-0 text-amber-600" /> {e}
+                      </p>
+                    ))}
+                  </div>
+                )}
+                {deep.perguntaExtra && (
+                  <p className="text-sun-deep">Desafio: {deep.perguntaExtra}</p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setDeep(null)}
+                  className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-soft hover:text-ink"
+                >
+                  ocultar aprofundamento
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="rounded-lg border border-sun/40 bg-sun/5 p-4">
             <p className="flex items-center gap-2 text-sm font-medium text-ink">
               <Target className="size-4 text-sun-deep" /> {step.pergunta}
             </p>
+            {stepAttempt > 1 && !stepFeedback && (
+              <p className="mt-1 font-mono text-[11px] uppercase tracking-[0.14em] text-sun-deep">
+                tentativa {stepAttempt} — ajuste sua resposta
+              </p>
+            )}
             {!stepFeedback && (
               <>
                 <textarea
@@ -349,15 +487,31 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
                   placeholder="Responda com suas palavras…"
                   className="mt-3 w-full resize-y rounded border border-line bg-paper p-3 text-sm text-ink outline-none focus:border-sun"
                 />
-                <button
-                  type="button"
-                  onClick={submitStep}
-                  disabled={busy || !text.trim()}
-                  className="mt-3 flex items-center gap-2 rounded bg-sun px-4 py-2 text-sm font-medium text-ink transition-opacity disabled:opacity-50"
-                >
-                  {busy ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
-                  Conferir resposta
-                </button>
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => submitStep(false)}
+                    disabled={busy || !text.trim()}
+                    className="flex items-center gap-2 rounded bg-sun px-4 py-2 text-sm font-medium text-ink transition-opacity disabled:opacity-50"
+                  >
+                    {busy ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="size-4" />
+                    )}
+                    Conferir resposta
+                  </button>
+                  {stepAttempt > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => submitStep(true)}
+                      disabled={busy}
+                      className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-soft hover:text-ink disabled:opacity-50"
+                    >
+                      ver a resolução
+                    </button>
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -365,7 +519,7 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
           {stepFeedback && (
             <div className="rounded-lg border border-line bg-paper p-4">
               <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-soft">
-                nota {stepFeedback.nota} de 10
+                nota {stepFeedback.nota} de 10 · tentativa {stepFeedback.tentativa}
               </p>
               {stepFeedback.acertos.map((a) => (
                 <p key={a} className="mt-2 flex gap-2 text-sm text-ink">
@@ -377,26 +531,63 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
                   <X className="mt-0.5 size-4 shrink-0 text-amber-600" /> {a}
                 </p>
               ))}
+              {stepFeedback.dica && (
+                <p className="mt-3 rounded border border-sun/40 bg-sun/5 p-3 text-sm text-ink">
+                  Pista: {stepFeedback.dica}
+                </p>
+              )}
               {stepFeedback.explicacao && (
                 <div className="mt-3 border-t border-line pt-3 text-sm leading-relaxed text-ink-soft">
                   <RichText>{stepFeedback.explicacao}</RichText>
                 </div>
               )}
-              {stepFeedback.dicaProximo && (
+              {stepFeedback.dicaProximo && !stepFeedback.podeTentarNovamente && (
                 <p className="mt-3 text-sm text-sun-deep">{stepFeedback.dicaProximo}</p>
               )}
-              <button
-                type="button"
-                onClick={nextStep}
-                className="mt-4 flex items-center gap-2 rounded bg-sun px-4 py-2 text-sm font-medium text-ink"
-              >
-                {stepIndex + 1 < session.steps.length
-                  ? "Próximo passo"
-                  : session.questions.length
-                    ? "Ir para os exercícios"
-                    : "Encerrar treino"}
-                <ChevronRight className="size-4" />
-              </button>
+
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                {stepFeedback.podeTentarNovamente ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={retryStep}
+                      className="flex items-center gap-2 rounded bg-sun px-4 py-2 text-sm font-medium text-ink"
+                    >
+                      <RotateCcw className="size-4" /> Tentar de novo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => submitStep(true)}
+                      disabled={busy}
+                      className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-soft hover:text-ink disabled:opacity-50"
+                    >
+                      ver a resolução
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={nextStep}
+                      className="flex items-center gap-2 rounded bg-sun px-4 py-2 text-sm font-medium text-ink"
+                    >
+                      {stepIndex + 1 < session.steps.length
+                        ? "Próximo passo"
+                        : session.questions.length
+                          ? "Ir para os exercícios"
+                          : "Encerrar treino"}
+                      <ChevronRight className="size-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={retryStep}
+                      className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-soft hover:text-ink"
+                    >
+                      reescrever minha resposta
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </section>
@@ -408,21 +599,34 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
             <RichText>{question.statement}</RichText>
           </div>
 
+          {qAttempt > 1 && !answerFeedback && (
+            <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-sun-deep">
+              segunda tentativa — as alternativas descartadas ficaram apagadas
+            </p>
+          )}
+
           {!answerFeedback &&
             (Object.keys(question.options).length > 0 ? (
               <div className="grid gap-2">
-                {Object.entries(question.options).map(([letter, value]) => (
-                  <button
-                    key={letter}
-                    type="button"
-                    disabled={busy}
-                    onClick={() => submitAnswer(letter)}
-                    className="flex gap-3 rounded border border-line bg-paper p-3 text-left text-sm text-ink transition-colors hover:border-sun disabled:opacity-60"
-                  >
-                    <span className="font-mono text-sun-deep">{letter}</span>
-                    <span className="min-w-0 flex-1">{value}</span>
-                  </button>
-                ))}
+                {Object.entries(question.options).map(([letter, value]) => {
+                  const out = eliminated.includes(letter.toUpperCase());
+                  return (
+                    <button
+                      key={letter}
+                      type="button"
+                      disabled={busy || out}
+                      onClick={() => submitAnswer(letter)}
+                      className={`flex gap-3 rounded border p-3 text-left text-sm transition-colors disabled:opacity-60 ${
+                        out
+                          ? "border-line bg-background text-ink-soft line-through"
+                          : "border-line bg-paper text-ink hover:border-sun"
+                      }`}
+                    >
+                      <span className="font-mono text-sun-deep">{letter}</span>
+                      <span className="min-w-0 flex-1">{value}</span>
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <>
@@ -454,32 +658,68 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
           {answerFeedback && (
             <div
               className={`rounded-lg border p-4 ${
-                answerFeedback.correta ? "border-emerald-500/50 bg-emerald-500/5" : "border-red-500/50 bg-red-500/5"
+                answerFeedback.correta
+                  ? "border-emerald-500/50 bg-emerald-500/5"
+                  : answerFeedback.podeTentarNovamente
+                    ? "border-amber-500/50 bg-amber-500/5"
+                    : "border-red-500/50 bg-red-500/5"
               }`}
             >
               <p className="font-medium text-ink">
-                {answerFeedback.correta ? "Acertou" : "Errou"}
+                {answerFeedback.correta
+                  ? "Acertou"
+                  : answerFeedback.podeTentarNovamente
+                    ? "Ainda não — dá pra tentar de novo"
+                    : "Errou"}
                 {answerFeedback.gabarito ? ` · gabarito ${answerFeedback.gabarito}` : ""}
               </p>
               {answerFeedback.ondeErrou && (
                 <p className="mt-2 text-sm text-ink">{answerFeedback.ondeErrou}</p>
+              )}
+              {answerFeedback.dica && (
+                <p className="mt-3 rounded border border-sun/40 bg-sun/5 p-3 text-sm text-ink">
+                  Pista: {answerFeedback.dica}
+                </p>
               )}
               {answerFeedback.explicacao && (
                 <div className="mt-3 border-t border-line pt-3 text-sm leading-relaxed text-ink-soft">
                   <RichText>{answerFeedback.explicacao}</RichText>
                 </div>
               )}
-              {answerFeedback.passoRevisar && (
+              {answerFeedback.passoRevisar && !answerFeedback.podeTentarNovamente && (
                 <p className="mt-3 text-sm text-sun-deep">Revisar: {answerFeedback.passoRevisar}</p>
               )}
-              <button
-                type="button"
-                onClick={nextQuestion}
-                className="mt-4 flex items-center gap-2 rounded bg-sun px-4 py-2 text-sm font-medium text-ink"
-              >
-                {qIndex + 1 < session.questions.length ? "Próxima questão" : "Ver resumo"}
-                <ChevronRight className="size-4" />
-              </button>
+
+              <div className="mt-4 flex flex-wrap items-center gap-3">
+                {answerFeedback.podeTentarNovamente ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={retryQuestion}
+                      className="flex items-center gap-2 rounded bg-sun px-4 py-2 text-sm font-medium text-ink"
+                    >
+                      <RotateCcw className="size-4" /> Tentar de novo
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => submitAnswer(text || "(pedido de resolução)", true)}
+                      disabled={busy}
+                      className="font-mono text-[11px] uppercase tracking-[0.14em] text-ink-soft hover:text-ink disabled:opacity-50"
+                    >
+                      ver a resolução
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={nextQuestion}
+                    className="flex items-center gap-2 rounded bg-sun px-4 py-2 text-sm font-medium text-ink"
+                  >
+                    {qIndex + 1 < session.questions.length ? "Próxima questão" : "Ver resumo"}
+                    <ChevronRight className="size-4" />
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </section>
