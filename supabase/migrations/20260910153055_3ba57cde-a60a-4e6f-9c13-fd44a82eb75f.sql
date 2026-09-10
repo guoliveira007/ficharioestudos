@@ -1,1 +1,0 @@
-DELETE FROM public.subjects WHERE user_id = '46b136bc-7458-4d0d-98d6-9a3a27f4995c';
