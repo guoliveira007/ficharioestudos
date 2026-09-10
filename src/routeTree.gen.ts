@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AulasRouteImport } from './routes/aulas'
 import { Route as BibliotecaRouteImport } from './routes/biblioteca'
 import { Route as EntrarRouteImport } from './routes/entrar'
+import { Route as EstudoRouteImport } from './routes/estudo'
 import { Route as FlashcardsRouteImport } from './routes/flashcards'
 import { Route as ImportarRouteImport } from './routes/importar'
 import { Route as NuvemRouteImport } from './routes/nuvem'
@@ -51,6 +52,11 @@ const BibliotecaRoute = BibliotecaRouteImport.update({
 const EntrarRoute = EntrarRouteImport.update({
   id: '/entrar',
   path: '/entrar',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EstudoRoute = EstudoRouteImport.update({
+  id: '/estudo',
+  path: '/estudo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FlashcardsRoute = FlashcardsRouteImport.update({
@@ -154,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/aulas': typeof AulasRoute
   '/biblioteca': typeof BibliotecaRoute
   '/entrar': typeof EntrarRoute
+  '/estudo': typeof EstudoRoute
   '/flashcards': typeof FlashcardsRoute
   '/importar': typeof ImportarRoute
   '/nuvem': typeof NuvemRoute
@@ -179,6 +186,7 @@ export interface FileRoutesByTo {
   '/aulas': typeof AulasRoute
   '/biblioteca': typeof BibliotecaRoute
   '/entrar': typeof EntrarRoute
+  '/estudo': typeof EstudoRoute
   '/flashcards': typeof FlashcardsRoute
   '/importar': typeof ImportarRoute
   '/nuvem': typeof NuvemRoute
@@ -205,6 +213,7 @@ export interface FileRoutesById {
   '/aulas': typeof AulasRoute
   '/biblioteca': typeof BibliotecaRoute
   '/entrar': typeof EntrarRoute
+  '/estudo': typeof EstudoRoute
   '/flashcards': typeof FlashcardsRoute
   '/importar': typeof ImportarRoute
   '/nuvem': typeof NuvemRoute
@@ -232,6 +241,7 @@ export interface FileRouteTypes {
     | '/aulas'
     | '/biblioteca'
     | '/entrar'
+    | '/estudo'
     | '/flashcards'
     | '/importar'
     | '/nuvem'
@@ -257,6 +267,7 @@ export interface FileRouteTypes {
     | '/aulas'
     | '/biblioteca'
     | '/entrar'
+    | '/estudo'
     | '/flashcards'
     | '/importar'
     | '/nuvem'
@@ -282,6 +293,7 @@ export interface FileRouteTypes {
     | '/aulas'
     | '/biblioteca'
     | '/entrar'
+    | '/estudo'
     | '/flashcards'
     | '/importar'
     | '/nuvem'
@@ -308,6 +320,7 @@ export interface RootRouteChildren {
   AulasRoute: typeof AulasRoute
   BibliotecaRoute: typeof BibliotecaRoute
   EntrarRoute: typeof EntrarRoute
+  EstudoRoute: typeof EstudoRoute
   FlashcardsRoute: typeof FlashcardsRoute
   ImportarRoute: typeof ImportarRoute
   NuvemRoute: typeof NuvemRoute
@@ -357,6 +370,13 @@ declare module '@tanstack/react-router' {
       path: '/entrar'
       fullPath: '/entrar'
       preLoaderRoute: typeof EntrarRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/estudo': {
+      id: '/estudo'
+      path: '/estudo'
+      fullPath: '/estudo'
+      preLoaderRoute: typeof EstudoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/flashcards': {
@@ -500,6 +520,7 @@ const rootRouteChildren: RootRouteChildren = {
   AulasRoute: AulasRoute,
   BibliotecaRoute: BibliotecaRoute,
   EntrarRoute: EntrarRoute,
+  EstudoRoute: EstudoRoute,
   FlashcardsRoute: FlashcardsRoute,
   ImportarRoute: ImportarRoute,
   NuvemRoute: NuvemRoute,
