@@ -307,19 +307,6 @@ export const workshopAnswer = createServerFn({ method: "POST" })
       })
       .eq("id", data.sessionId);
 
-    if (!correta && gabarito) {
-      // erro vira flashcard de revisão do assunto
-      await supabase.from("flashcards").insert({
-        user_id: userId,
-        subject_id: null as unknown as string,
-        front: `${question.topic_label ?? "Revisão"} — ${String(question.statement).slice(0, 200)}`,
-        back: feedback.explicacao.slice(0, 1500) || `Alternativa correta: ${gabarito}`,
-        box: 1,
-        reviews: 0,
-        next_review: new Date().toISOString(),
-      });
-    }
-
     return feedback;
   });
 
