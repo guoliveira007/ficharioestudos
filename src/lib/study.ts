@@ -373,19 +373,22 @@ async function runUserSetup() {
     });
   }
 
-  const { count } = await supabase
+  const { data: existingSubjects } = await supabase
     .from("subjects")
-    .select("id", { count: "exact", head: true })
+    .select("name")
     .eq("user_id", user.id);
-  if (!count) {
+  const existingNames = new Set((existingSubjects ?? []).map((s) => s.name));
+  const missing = DEFAULT_SUBJECTS.filter((s) => !existingNames.has(s.name));
+  if (missing.length > 0) {
     await supabase
       .from("subjects")
-      .insert(DEFAULT_SUBJECTS.map((s) => ({ ...s, user_id: user.id })));
+      .insert(missing.map((s) => ({ ...s, user_id: user.id })));
     await ensureFrentes(user.id);
     return "created" as const;
   }
   const added = await ensureFrentes(user.id);
   return added ? ("created" as const) : ("ok" as const);
+
 }
 
 /**
