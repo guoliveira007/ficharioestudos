@@ -300,6 +300,10 @@ export type AnswerFeedback = {
   explicacao: string;
   ondeErrou: string;
   passoRevisar: string;
+  dica: string;
+  descartadas: string[];
+  podeTentarNovamente: boolean;
+  tentativa: number;
 };
 
 /** Corrige uma questão do simulado dentro do treino. */
@@ -311,6 +315,8 @@ export const workshopAnswer = createServerFn({ method: "POST" })
         sessionId: z.string().uuid(),
         questionId: z.string().uuid(),
         answer: z.string().min(1).max(4000),
+        attempt: z.number().int().min(1).max(5).default(1),
+        revelar: z.boolean().default(false),
       })
       .parse(input),
   )
@@ -324,25 +330,30 @@ export const workshopAnswer = createServerFn({ method: "POST" })
     if (error || !question) throw new Error("Questão não encontrada.");
 
     const options = (question.options ?? {}) as Record<string, string>;
+    const temAlternativas = Object.keys(options).length > 0;
     const area = getArea(question.area);
     const chosen = data.answer.trim();
     const letter = chosen.toUpperCase().slice(0, 1);
     const known = question.correct_answer ? String(question.correct_answer).toUpperCase() : null;
+    const ultima = data.revelar || data.attempt >= 2;
 
     const parsed = await aiJson<Partial<AnswerFeedback>>(
       "Você é professor de cursinho corrigindo uma questão com o aluno, em português do Brasil. " +
         `Área: ${area.label}. ${area.brief}\nAssunto: ${question.topic_label ?? ""}.\n` +
         (known ? `Gabarito oficial: ${known}. Use este gabarito.\n` : "O gabarito não veio no material: resolva a questão e determine a alternativa correta.\n") +
         (question.explanation ? `Resolução do material: ${question.explanation}\n` : "") +
-        "'explicacao' resolve a questão em passos curtos. 'ondeErrou' explica, em uma frase, o raciocínio que levou o aluno ao engano " +
-        "(ou o que ele acertou, se estiver certo). 'passoRevisar' indica o conceito a revisar.\n" +
-        'Responda só JSON: {"correta":true,"gabarito":"A","explicacao":"...","ondeErrou":"...","passoRevisar":"..."}',
+        `Esta é a tentativa ${data.attempt} do aluno.\n` +
+        (ultima
+          ? "'explicacao' resolve a questão em passos completos, dizendo por que cada alternativa errada é errada. 'dica' fica vazia. "
+          : "O aluno ainda vai tentar de novo: se ele errou, NÃO revele o gabarito nem a resolução. Deixe 'explicacao' vazia, escreva em 'dica' uma pista socrática que o reoriente e liste em 'descartadas' as letras que ele já pode eliminar com segurança (sem incluir a correta). Se acertou, preencha 'explicacao' normalmente. ") +
+        "'ondeErrou' explica, em uma frase, o raciocínio que levou o aluno ao engano (ou o que ele acertou, se estiver certo). 'passoRevisar' indica o conceito a revisar.\n" +
+        'Responda só JSON: {"correta":true,"gabarito":"A","explicacao":"...","ondeErrou":"...","passoRevisar":"...","dica":"...","descartadas":["B"]}',
       [
         {
           type: "text",
           text: [
             `QUESTÃO:\n${question.statement}`,
-            Object.keys(options).length
+            temAlternativas
               ? `ALTERNATIVAS:\n${Object.entries(options).map(([k, v]) => `${k}) ${v}`).join("\n")}`
               : "Questão dissertativa.",
             `RESPOSTA DO ALUNO: ${chosen}`,
@@ -352,15 +363,26 @@ export const workshopAnswer = createServerFn({ method: "POST" })
     );
 
     const gabarito = known ?? String(parsed.gabarito ?? "").toUpperCase().slice(0, 1);
-    const correta =
-      Object.keys(options).length && gabarito ? letter === gabarito : parsed.correta === true;
+    const correta = temAlternativas && gabarito ? letter === gabarito : parsed.correta === true;
+    const mostrar = correta || ultima;
 
     const feedback: AnswerFeedback = {
       correta,
-      gabarito,
-      explicacao: String(parsed.explicacao ?? "").trim(),
+      gabarito: mostrar ? gabarito : "",
+      explicacao: mostrar ? String(parsed.explicacao ?? "").trim() : "",
       ondeErrou: String(parsed.ondeErrou ?? "").trim(),
       passoRevisar: String(parsed.passoRevisar ?? "").trim(),
+      dica: mostrar ? "" : String(parsed.dica ?? "").trim(),
+      descartadas: mostrar
+        ? []
+        : Array.isArray(parsed.descartadas)
+          ? parsed.descartadas
+              .map((s) => String(s).toUpperCase().slice(0, 1))
+              .filter((s) => s && s !== gabarito)
+              .slice(0, 3)
+          : [letter].filter(Boolean),
+      podeTentarNovamente: !correta && !ultima,
+      tentativa: data.attempt,
     };
 
     await supabase.from("workshop_answers").insert({
@@ -373,19 +395,21 @@ export const workshopAnswer = createServerFn({ method: "POST" })
       feedback: feedback as unknown as never,
     });
 
-    const { data: session } = await supabase
-      .from("workshop_sessions")
-      .select("correct,total")
-      .eq("id", data.sessionId)
-      .single();
-    await supabase
-      .from("workshop_sessions")
-      .update({
-        stage: "exercicios",
-        correct: (session?.correct ?? 0) + (correta ? 1 : 0),
-        total: (session?.total ?? 0) + 1,
-      })
-      .eq("id", data.sessionId);
+    if (data.attempt === 1) {
+      const { data: session } = await supabase
+        .from("workshop_sessions")
+        .select("correct,total")
+        .eq("id", data.sessionId)
+        .single();
+      await supabase
+        .from("workshop_sessions")
+        .update({
+          stage: "exercicios",
+          correct: (session?.correct ?? 0) + (correta ? 1 : 0),
+          total: (session?.total ?? 0) + 1,
+        })
+        .eq("id", data.sessionId);
+    }
 
     return feedback;
   });
