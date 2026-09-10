@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 
 import { AppShell } from "@/components/AppShell";
+import { StudyLibraryPanel } from "@/components/StudyLibraryPanel";
 import { useViewer } from "@/components/SplitView";
 import {
   getOneDriveStatus,
@@ -276,6 +277,8 @@ function NuvemPage() {
           <Loader2 className="size-3.5 animate-spin text-sun" /> Localizando pasta compartilhada…
         </div>
       )}
+
+      <StudyLibraryPanel />
 
       <nav className="mt-4 flex flex-wrap items-center gap-1 text-sm">
         {inShared ? (
