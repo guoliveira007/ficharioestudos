@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Concluído
+- Importação dos 17 CSVs do banco anterior (IDs e relacionamentos preservados, sem duplicatas); resgate pelo código FICHARIO-2026 em /importar
 - /upload/$sessionId (página do celular: foto → transcrição)
 - /simulados/$id usa <ErrorAnalysis /> reutilizável
 - /praticar com exame avulso status 'pratica' + próxima questão por tipo de erro
@@ -12,7 +13,7 @@
 - Typecheck ok
 
 ## Aberto
-- Importar 17 CSVs do banco legado (pré-remix) para o novo projeto. Recebidos 10/17; aguardando os 7 restantes antes de implementar. Deve ser idempotente, sem duplicatas e preservando IDs/relacionamentos.
+- (nada aberto)
 
 
 ## Novo (set/2026)
