@@ -95,7 +95,7 @@ function Catalog({ onStart }: { onStart: (s: WorkshopSession) => void }) {
     try {
       onStart(await start({ data: { topicId } }));
     } catch (err) {
-      toast.error(errorMessage(err));
+      toast.error(errorMessage(err, "Não consegui concluir agora."));
     } finally {
       setOpening(null);
     }
@@ -248,7 +248,7 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
     try {
       setStepFeedback(await sendStep({ data: { sessionId: session.sessionId, stepIndex, answer: text } }));
     } catch (err) {
-      toast.error(errorMessage(err));
+      toast.error(errorMessage(err, "Não consegui concluir agora."));
     } finally {
       setBusy(false);
     }
@@ -276,7 +276,7 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
       setAnswerFeedback(feedback);
       setScore((s) => ({ correct: s.correct + (feedback.correta ? 1 : 0), total: s.total + 1 }));
     } catch (err) {
-      toast.error(errorMessage(err));
+      toast.error(errorMessage(err, "Não consegui concluir agora."));
     } finally {
       setBusy(false);
     }
@@ -326,12 +326,12 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
           <div className="rounded-lg border border-line bg-paper p-4">
             <p className="font-medium text-ink">{step.titulo}</p>
             <div className="mt-2 text-sm leading-relaxed text-ink-soft">
-              <RichText text={step.explicacao} />
+              <RichText>{step.explicacao}</RichText>
             </div>
             {step.exemplo && (
               <div className="mt-3 rounded border border-line bg-background p-3 text-sm text-ink-soft">
                 <p className="mb-1 font-mono text-[10px] uppercase tracking-[0.14em]">exemplo</p>
-                <RichText text={step.exemplo} />
+                <RichText>{step.exemplo}</RichText>
               </div>
             )}
           </div>
@@ -379,7 +379,7 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
               ))}
               {stepFeedback.explicacao && (
                 <div className="mt-3 border-t border-line pt-3 text-sm leading-relaxed text-ink-soft">
-                  <RichText text={stepFeedback.explicacao} />
+                  <RichText>{stepFeedback.explicacao}</RichText>
                 </div>
               )}
               {stepFeedback.dicaProximo && (
@@ -405,7 +405,7 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
       {stage === "exercicios" && question && (
         <section className="mt-6 space-y-4">
           <div className="rounded-lg border border-line bg-paper p-4 text-sm leading-relaxed text-ink">
-            <RichText text={question.statement} />
+            <RichText>{question.statement}</RichText>
           </div>
 
           {!answerFeedback &&
@@ -466,7 +466,7 @@ function Runner({ session, onExit }: { session: WorkshopSession; onExit: () => v
               )}
               {answerFeedback.explicacao && (
                 <div className="mt-3 border-t border-line pt-3 text-sm leading-relaxed text-ink-soft">
-                  <RichText text={answerFeedback.explicacao} />
+                  <RichText>{answerFeedback.explicacao}</RichText>
                 </div>
               )}
               {answerFeedback.passoRevisar && (
