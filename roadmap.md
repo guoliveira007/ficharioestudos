@@ -12,7 +12,8 @@
 - Typecheck ok
 
 ## Aberto
-- (nada)
+- Importar 17 CSVs do banco legado (pré-remix) para o novo projeto. Recebidos 10/17; aguardando os 7 restantes antes de implementar. Deve ser idempotente, sem duplicatas e preservando IDs/relacionamentos.
+
 
 ## Novo (set/2026)
 - Tela /progresso: respondidas/acertos/erros por matéria + assuntos do edital faltando
