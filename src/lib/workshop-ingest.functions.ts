@@ -133,6 +133,23 @@ type AiTopic = {
   }[];
 };
 
+const norm = (v: unknown) =>
+  String(v ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const BOARDS = ["ENEM", "FUVEST", "UNIFESP"] as const;
+
+const boardsOf = (raw: unknown): string[] => {
+  const list = Array.isArray(raw) ? raw : [raw];
+  const found = list
+    .map((v) => BOARDS.find((b) => norm(v).includes(norm(b))))
+    .filter((b): b is (typeof BOARDS)[number] => !!b);
+  return Array.from(new Set(found));
+};
+
 const optionsOf = (raw: unknown): Record<string, string> => {
   if (Array.isArray(raw)) {
     const letters = ["A", "B", "C", "D", "E"];
