@@ -9,6 +9,9 @@ export type CatalogTopic = {
   id: string;
   area: string;
   subjectLabel: string;
+  frente: string;
+  boards: string[];
+  examFocus: string;
   title: string;
   summary: string;
   steps: number;
