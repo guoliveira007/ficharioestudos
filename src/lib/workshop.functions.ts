@@ -28,10 +28,11 @@ export const listWorkshopCatalog = createServerFn({ method: "GET" })
     const [topics, questions, sessions] = await Promise.all([
       supabase
         .from("workshop_topics")
-        .select("id,area,subject_label,title,summary,steps")
+        .select("id,area,subject_label,frente,boards,exam_focus,title,summary,steps")
         .eq("user_id", userId)
         .order("area")
         .order("subject_label")
+        .order("frente")
         .order("title"),
       supabase.from("workshop_questions").select("topic_id").eq("user_id", userId),
       supabase
