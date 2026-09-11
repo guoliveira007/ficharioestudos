@@ -120,6 +120,9 @@ const areaOf = (value: unknown): AreaId => {
 type AiTopic = {
   area?: string;
   materia?: string;
+  frente?: string;
+  bancas?: unknown;
+  comoCai?: string;
   titulo?: string;
   resumo?: string;
   passos?: unknown;
@@ -130,7 +133,25 @@ type AiTopic = {
     explicacao?: string;
     dificuldade?: string;
     pagina?: number;
+    banca?: string;
   }[];
+};
+
+const norm = (v: unknown) =>
+  String(v ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const BOARDS = ["ENEM", "FUVEST", "UNIFESP"] as const;
+
+const boardsOf = (raw: unknown): string[] => {
+  const list = Array.isArray(raw) ? raw : [raw];
+  const found = list
+    .map((v) => BOARDS.find((b) => norm(v).includes(norm(b))))
+    .filter((b): b is (typeof BOARDS)[number] => !!b);
+  return Array.from(new Set(found));
 };
 
 const optionsOf = (raw: unknown): Record<string, string> => {
@@ -166,22 +187,72 @@ export const ingestSource = createServerFn({ method: "POST" })
       const { fetchFileBytes } = await import("@/lib/cloud-graph.server");
       const bytes = await fetchFileBytes(String(source.drive_id), String(source.onedrive_item_id));
 
+      // taxonomia real do aluno: matérias e frentes já usadas na plataforma
+      const [{ data: subjectRows }, { data: lessonRows }] = await Promise.all([
+        supabase.from("subjects").select("id,name,parent_id,area").eq("user_id", userId),
+        supabase.from("custom_lessons").select("subject,frente").eq("user_id", userId).limit(400),
+      ]);
+      const subjects = subjectRows ?? [];
+      const byId = new Map(subjects.map((s) => [s.id, s]));
+      const taxonomy = new Map<string, Set<string>>();
+      for (const s of subjects) {
+        const parent = s.parent_id ? byId.get(s.parent_id) : null;
+        const materia = parent ? parent.name : s.name;
+        const set = taxonomy.get(materia) ?? new Set<string>();
+        if (parent) set.add(s.name);
+        taxonomy.set(materia, set);
+      }
+      for (const l of lessonRows ?? []) {
+        const materia = String(l.subject ?? "").trim();
+        const frente = String(l.frente ?? "").trim();
+        if (!materia) continue;
+        const set = taxonomy.get(materia) ?? new Set<string>();
+        if (frente) set.add(frente);
+        taxonomy.set(materia, set);
+      }
+      const taxonomyText =
+        [...taxonomy.entries()]
+          .map(([m, fs]) => `- ${m}${fs.size ? `: ${[...fs].slice(0, 12).join(", ")}` : ""}`)
+          .slice(0, 40)
+          .join("\n") || "(sem matérias cadastradas ainda)";
+
+      const subjectIdFor = (materia: string, frente: string) => {
+        const nm = norm(materia);
+        const nf = norm(frente);
+        const parent = subjects.find((s) => !s.parent_id && norm(s.name) === nm);
+        if (parent && nf) {
+          const child = subjects.find(
+            (s) => s.parent_id === parent.id && norm(s.name) === nf,
+          );
+          if (child) return child.id;
+        }
+        return parent?.id ?? null;
+      };
+
       const isExam = source.folder === "simulados";
       const parsed = await aiJson<{ topicos?: AiTopic[] }>(
-        "Você é um professor brasileiro de cursinho pré-vestibular montando material de estudo a partir de um PDF. " +
-          "Leia o arquivo inteiro e organize o conteúdo em assuntos.\n" +
+        "Você é professor de um dos melhores cursinhos do Brasil montando material de estudo a partir de um PDF, " +
+          "com foco exclusivo em ENEM, FUVEST e UNIFESP. Leia o arquivo inteiro e organize em assuntos objetivos.\n" +
           (isExam
-            ? "Este PDF é um SIMULADO. Para cada assunto cobrado, extraia as questões correspondentes com enunciado completo, " +
-              "alternativas, gabarito (quando aparecer) e explicação da resolução. Os 'passos' podem ser curtos, revisando o que a questão exige."
-            : "Este PDF é MATERIAL DE AULA. Para cada assunto, monte uma explicação em passos progressivos e, quando houver exercícios no PDF, extraia-os como questões.") +
-          "\n\nRegras: use apenas o que está no PDF (não invente); português do Brasil; " +
-          "'area' é 'naturezas', 'matematica' ou 'linguagens'; 'materia' é a disciplina (ex.: Física, Química, Biologia, Matemática, Português, Literatura, Inglês). " +
-          "Cada assunto tem de 3 a 6 passos. Cada passo: 'titulo' curto, 'explicacao' com 3 a 6 frases, 'exemplo' resolvido ou trecho comentado, " +
-          "'pergunta' de checagem para o aluno responder com as próprias palavras e 'respostaEsperada'. " +
-          "Fórmulas em texto simples. No máximo 6 assuntos e 8 questões por assunto.\n" +
-          'Responda só JSON: {"topicos":[{"area":"...","materia":"...","titulo":"...","resumo":"...",' +
+            ? "Este PDF é um SIMULADO. Para cada assunto cobrado, extraia as questões com enunciado completo, alternativas, " +
+              "gabarito (quando aparecer) e resolução comentada. Os 'passos' revisam a teoria mínima que a questão exige."
+            : "Este PDF é MATERIAL DE AULA. Para cada assunto, monte uma aula em passos progressivos e extraia os exercícios do PDF como questões.") +
+          "\n\nMATÉRIAS E FRENTES QUE O ALUNO JÁ USA (reaproveite os nomes exatos sempre que couber):\n" +
+          taxonomyText +
+          "\n\nRegras obrigatórias:\n" +
+          "1. Use apenas o conteúdo do PDF; não invente dados. Português do Brasil.\n" +
+          "2. 'area' é 'naturezas', 'matematica' ou 'linguagens'. 'materia' é a disciplina (Física, Química, Biologia, Matemática, Português, Literatura, Inglês, Redação…).\n" +
+          "3. 'frente' é a frente/divisão dentro da matéria (ex.: Mecânica, Eletromagnetismo, Físico-Química, Orgânica, Álgebra, Geometria, Gramática, Literatura, Interpretação). " +
+          "Prefira uma frente da lista acima; só crie outra se nenhuma servir. Nunca deixe 'frente' vazia.\n" +
+          "4. 'bancas' lista onde o assunto mais cai, entre ENEM, FUVEST e UNIFESP. 'comoCai' diz em 1 ou 2 frases o recorte típico de cobrança dessas bancas.\n" +
+          "5. Seja DIDÁTICO e ENXUTO: nada de encher linguiça. 3 a 5 passos por assunto. Cada passo: 'titulo' curto, " +
+          "'explicacao' direta em 3 a 5 frases (o porquê, não só o que), 'exemplo' resolvido no estilo da banca, " +
+          "'pergunta' de checagem que exige raciocínio (não decoreba) e 'respostaEsperada' objetiva.\n" +
+          "6. Priorize o que é recorrente em prova; descarte curiosidades e trechos administrativos do PDF.\n" +
+          "7. Fórmulas em texto simples. No máximo 6 assuntos e 8 questões por assunto. Em cada questão, 'banca' é ENEM, FUVEST, UNIFESP ou o vestibular citado no PDF.\n" +
+          'Responda só JSON: {"topicos":[{"area":"...","materia":"...","frente":"...","bancas":["ENEM"],"comoCai":"...","titulo":"...","resumo":"...",' +
           '"passos":[{"titulo":"...","explicacao":"...","exemplo":"...","pergunta":"...","respostaEsperada":"..."}],' +
-          '"questoes":[{"enunciado":"...","alternativas":{"A":"...","B":"..."},"gabarito":"A","explicacao":"...","dificuldade":"facil|media|dificil","pagina":1}]}]}',
+          '"questoes":[{"enunciado":"...","alternativas":{"A":"...","B":"..."},"gabarito":"A","explicacao":"...","dificuldade":"facil|media|dificil","pagina":1,"banca":"ENEM"}]}]}',
         [
           {
             type: "file",
@@ -202,14 +273,20 @@ export const ingestSource = createServerFn({ method: "POST" })
         if (!title || steps.length === 0) continue;
         const area = areaOf(topic.area);
         const subjectLabel = String(topic.materia ?? "").trim();
+        const frente = String(topic.frente ?? "").trim().slice(0, 80);
+        const boards = boardsOf(topic.bancas);
 
         const { data: inserted, error: topicError } = await supabase
           .from("workshop_topics")
           .insert({
             user_id: userId,
             source_id: source.id,
+            subject_id: subjectIdFor(subjectLabel, frente),
             area,
             subject_label: subjectLabel,
+            frente,
+            boards,
+            exam_focus: String(topic.comoCai ?? "").trim().slice(0, 400),
             title,
             summary: String(topic.resumo ?? "").trim(),
             steps: steps as unknown as never,
@@ -227,6 +304,8 @@ export const ingestSource = createServerFn({ method: "POST" })
             source_id: source.id,
             area,
             subject_label: subjectLabel,
+            frente,
+            board: boardsOf(q.banca)[0] ?? boards[0] ?? null,
             topic_label: title,
             statement: String(q.enunciado ?? "").trim(),
             options: optionsOf(q.alternativas) as unknown as never,

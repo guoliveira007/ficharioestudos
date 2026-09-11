@@ -9,6 +9,9 @@ export type CatalogTopic = {
   id: string;
   area: string;
   subjectLabel: string;
+  frente: string;
+  boards: string[];
+  examFocus: string;
   title: string;
   summary: string;
   steps: number;
@@ -25,10 +28,11 @@ export const listWorkshopCatalog = createServerFn({ method: "GET" })
     const [topics, questions, sessions] = await Promise.all([
       supabase
         .from("workshop_topics")
-        .select("id,area,subject_label,title,summary,steps")
+        .select("id,area,subject_label,frente,boards,exam_focus,title,summary,steps")
         .eq("user_id", userId)
         .order("area")
         .order("subject_label")
+        .order("frente")
         .order("title"),
       supabase.from("workshop_questions").select("topic_id").eq("user_id", userId),
       supabase
@@ -58,6 +62,9 @@ export const listWorkshopCatalog = createServerFn({ method: "GET" })
       id: t.id,
       area: t.area,
       subjectLabel: t.subject_label ?? "",
+      frente: t.frente ?? "",
+      boards: (t.boards ?? []) as string[],
+      examFocus: t.exam_focus ?? "",
       title: t.title,
       summary: t.summary ?? "",
       steps: normalizeSteps(t.steps).length,
