@@ -120,6 +120,9 @@ const areaOf = (value: unknown): AreaId => {
 type AiTopic = {
   area?: string;
   materia?: string;
+  frente?: string;
+  bancas?: unknown;
+  comoCai?: string;
   titulo?: string;
   resumo?: string;
   passos?: unknown;
@@ -130,6 +133,7 @@ type AiTopic = {
     explicacao?: string;
     dificuldade?: string;
     pagina?: number;
+    banca?: string;
   }[];
 };
 
