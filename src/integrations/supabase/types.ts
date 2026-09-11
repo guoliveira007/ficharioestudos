@@ -1070,10 +1070,12 @@ export type Database = {
       workshop_questions: {
         Row: {
           area: string
+          board: string | null
           correct_answer: string | null
           created_at: string
           difficulty: string
           explanation: string | null
+          frente: string
           id: string
           options: Json
           page_number: number | null
@@ -1086,10 +1088,12 @@ export type Database = {
         }
         Insert: {
           area: string
+          board?: string | null
           correct_answer?: string | null
           created_at?: string
           difficulty?: string
           explanation?: string | null
+          frente?: string
           id?: string
           options?: Json
           page_number?: number | null
@@ -1102,10 +1106,12 @@ export type Database = {
         }
         Update: {
           area?: string
+          board?: string | null
           correct_answer?: string | null
           created_at?: string
           difficulty?: string
           explanation?: string | null
+          frente?: string
           id?: string
           options?: Json
           page_number?: number | null
@@ -1240,7 +1246,10 @@ export type Database = {
       workshop_topics: {
         Row: {
           area: string
+          boards: string[]
           created_at: string
+          exam_focus: string
+          frente: string
           id: string
           source_id: string | null
           steps: Json
@@ -1253,7 +1262,10 @@ export type Database = {
         }
         Insert: {
           area: string
+          boards?: string[]
           created_at?: string
+          exam_focus?: string
+          frente?: string
           id?: string
           source_id?: string | null
           steps?: Json
@@ -1266,7 +1278,10 @@ export type Database = {
         }
         Update: {
           area?: string
+          boards?: string[]
           created_at?: string
+          exam_focus?: string
+          frente?: string
           id?: string
           source_id?: string | null
           steps?: Json
